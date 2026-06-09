@@ -10,6 +10,7 @@ import type {
 } from "./types";
 import rawFigures from "./figures.json";
 import pageviewsData from "./pageviews.json";
+import powerData from "./power.json";
 
 // ---------------------------------------------------------------------------
 // Parties (neutral metadata only — name + abbreviation)
@@ -37,6 +38,7 @@ interface RawFigure {
   state: string;
   prominence: number;
   wikiTitle?: string;
+  bioguideId?: string;
 }
 
 function maj(party: "D" | "R" | "I"): Figure["chamberControl"] {
@@ -57,6 +59,7 @@ export const figures: Figure[] = (rawFigures as RawFigure[]).map((rf) => ({
     rf.office === "senator" || rf.office === "representative" ? maj(rf.party) : "na",
   prominence: rf.prominence,
   wikiTitle: rf.wikiTitle,
+  bioguideId: rf.bioguideId,
 }));
 
 export function figureById(id: string): Figure | undefined {
@@ -156,6 +159,21 @@ const pageviews = pageviewsData as {
 
 export const usingRealInfluence = pageviews.generatedAt !== null;
 
+interface PowerEvent {
+  type: string;
+  basePoints: number;
+  description: string;
+  url: string;
+}
+const power = powerData as {
+  generatedAt: string | null;
+  source: string;
+  figuresIngested: string[];
+  data: Record<string, Record<string, { points: number; events: PowerEvent[] }>>;
+};
+const powerIngested = new Set(power.figuresIngested);
+export const usingRealPower = power.generatedAt !== null;
+
 // ---------------------------------------------------------------------------
 // Deterministic event generator. Power/Aura/Truth are seeded; Influence prefers
 // real pageview data when available. In production all of these come from the
@@ -200,46 +218,61 @@ function buildEvents(): ScoredEvent[] {
       const rnd = mulberry32(hashSeed(`${f.id}:${week}`));
       const prom = f.prominence / 100;
 
-      // --- POWER: legislative activity ---
-      const votes = 4 + Math.floor(rnd() * 9);
-      add({
-        figureId: f.id, category: "power", type: "votes_cast", week,
-        occurredAt: ISO(week, 1), basePoints: votes * 0.5,
-        source: "Congress.gov / OpenStates", sourceUrl: "https://www.congress.gov",
-        description: `${votes} roll-call votes cast`,
-      });
-      if (rnd() < 0.5) {
-        const cos = 1 + Math.floor(rnd() * 3);
+      // --- POWER: real Congress.gov legislation when ingested, else synthetic ---
+      if (powerIngested.has(f.id)) {
+        const wk = power.data[f.id]?.[String(week)];
+        for (const pe of wk?.events ?? []) {
+          add({
+            figureId: f.id, category: "power", type: pe.type, week,
+            occurredAt: ISO(week, 2), basePoints: pe.basePoints,
+            source: "Congress.gov API", sourceUrl: pe.url,
+            description: pe.description,
+          });
+        }
+        // A week with no legislative activity legitimately scores 0 Power.
+      } else {
+        // Separate PRNG so the Power branch never shifts Aura/Truth randomness.
+        const rp = mulberry32(hashSeed(`${f.id}:${week}:power`));
+        const votes = 4 + Math.floor(rp() * 9);
         add({
-          figureId: f.id, category: "power", type: "cosponsor", week,
-          occurredAt: ISO(week, 2), basePoints: cos,
-          source: "Congress.gov", sourceUrl: "https://www.congress.gov",
-          description: `Co-sponsored ${cos} bill(s)`,
+          figureId: f.id, category: "power", type: "votes_cast", week,
+          occurredAt: ISO(week, 1), basePoints: votes * 0.5,
+          source: "Congress.gov / OpenStates (synthetic)", sourceUrl: "https://www.congress.gov",
+          description: `${votes} roll-call votes cast`,
         });
-      }
-      if (rnd() < 0.35) {
-        add({
-          figureId: f.id, category: "power", type: "sponsor", week,
-          occurredAt: ISO(week, 2), basePoints: 3,
-          source: "Congress.gov", sourceUrl: "https://www.congress.gov",
-          description: "Sponsored a bill",
-        });
-      }
-      if (rnd() < 0.12 * (0.5 + prom)) {
-        add({
-          figureId: f.id, category: "power", type: "bill_passed_chamber", week,
-          occurredAt: ISO(week, 3), basePoints: 8,
-          source: "Congress.gov", sourceUrl: "https://www.congress.gov",
-          description: "Sponsored bill passed its chamber",
-        });
-      }
-      if (f.chamberControl !== "na" && rnd() < 0.25) {
-        add({
-          figureId: f.id, category: "power", type: "committee", week,
-          occurredAt: ISO(week, 0), basePoints: 2,
-          source: "Official record",
-          description: "Committee / leadership role",
-        });
+        if (rp() < 0.5) {
+          const cos = 1 + Math.floor(rp() * 3);
+          add({
+            figureId: f.id, category: "power", type: "cosponsor", week,
+            occurredAt: ISO(week, 2), basePoints: cos,
+            source: "Congress.gov (synthetic)", sourceUrl: "https://www.congress.gov",
+            description: `Co-sponsored ${cos} bill(s)`,
+          });
+        }
+        if (rp() < 0.35) {
+          add({
+            figureId: f.id, category: "power", type: "sponsor", week,
+            occurredAt: ISO(week, 2), basePoints: 3,
+            source: "Congress.gov (synthetic)", sourceUrl: "https://www.congress.gov",
+            description: "Sponsored a bill",
+          });
+        }
+        if (rp() < 0.12 * (0.5 + prom)) {
+          add({
+            figureId: f.id, category: "power", type: "bill_passed_chamber", week,
+            occurredAt: ISO(week, 3), basePoints: 8,
+            source: "Congress.gov (synthetic)", sourceUrl: "https://www.congress.gov",
+            description: "Sponsored bill passed its chamber",
+          });
+        }
+        if (f.chamberControl !== "na" && rp() < 0.25) {
+          add({
+            figureId: f.id, category: "power", type: "committee", week,
+            occurredAt: ISO(week, 0), basePoints: 2,
+            source: "Official record (synthetic)",
+            description: "Committee / leadership role",
+          });
+        }
       }
 
       // --- INFLUENCE: real Wikipedia pageviews when available, else synthetic ---
