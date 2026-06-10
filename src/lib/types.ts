@@ -14,6 +14,9 @@ export type ChamberControl = "majority" | "minority" | "na";
 
 export type ScoreCategory = "power" | "influence" | "truth" | "aura";
 
+/** Per-category weights for a league, summing to 1. */
+export type ScoringWeights = Record<ScoreCategory, number>;
+
 export type RosterSlot = "SEN" | "REP" | "EXEC" | "FLEX" | "BENCH";
 
 export interface Party {
@@ -58,8 +61,7 @@ export interface League {
   name: string;
   visibility: "private" | "public" | "global";
   ownerUserId: string;
-  /** Weights per category, summing to 1. */
-  scoringWeights: Record<ScoreCategory, number>;
+  scoringWeights: ScoringWeights;
   regularWeeks: number;
   playoffTeams: number;
   currentWeek: number;

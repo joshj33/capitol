@@ -1,18 +1,15 @@
 import Link from "next/link";
-import {
-  getFiguresRanked,
-  getLeague,
-  getMatchups,
-  getPartyAbbr,
-  getStandings,
-} from "@/lib/data";
+import { getQueries } from "@/lib/data";
 import { FigureLink, Stat } from "@/components/ui";
 
-export default function HomePage() {
-  const league = getLeague();
-  const standings = getStandings();
-  const thisWeek = getMatchups(league.currentWeek);
-  const trending = getFiguresRanked().slice(0, 5);
+export default async function HomePage() {
+  const q = await getQueries();
+  const league = q.getLeague();
+  const standings = q.getStandings();
+  const thisWeek = q.getMatchups(league.currentWeek);
+  const trending = q.getFiguresRanked().slice(0, 5);
+  const myTeam = q.getMyTeam();
+  const myRow = standings.find((s) => s.team.id === myTeam?.id);
 
   return (
     <div className="space-y-8">
@@ -44,7 +41,7 @@ export default function HomePage() {
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="League" value={league.name.replace("The ", "")} sub={`Week ${league.currentWeek} of ${league.regularWeeks}`} />
         <Stat label="Teams" value={standings.length} sub="private league" />
-        <Stat label="Your record" value={`${standings.find((s) => s.team.id === "t-a")?.wins ?? 0}–${standings.find((s) => s.team.id === "t-a")?.losses ?? 0}`} sub="Capitol Hawks" />
+        <Stat label="Your record" value={`${myRow?.wins ?? 0}–${myRow?.losses ?? 0}`} sub={myTeam?.name ?? "—"} />
         <Stat label="Scoring live" value="Power + Influence" sub="Truth & Aura in V2" />
       </section>
 
@@ -86,7 +83,7 @@ export default function HomePage() {
             <div className="card space-y-3">
               {trending.map(({ figure, total }) => (
                 <div key={figure.id} className="flex items-center justify-between">
-                  <FigureLink figure={figure} abbr={getPartyAbbr(figure.partyId)} />
+                  <FigureLink figure={figure} abbr={q.getPartyAbbr(figure.partyId)} />
                   <span className="tabular-nums font-semibold">{total}</span>
                 </div>
               ))}

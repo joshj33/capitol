@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { getFiguresRanked, getPartyAbbr, teamOf } from "@/lib/data";
+import { getQueries } from "@/lib/data";
 import { Avatar, PartyChip, officeLabel } from "@/components/ui";
 
-export default function PlayersPage() {
-  const ranked = getFiguresRanked();
+export default async function PlayersPage() {
+  const q = await getQueries();
+  const ranked = q.getFiguresRanked();
 
   return (
     <div className="space-y-4">
@@ -28,7 +29,7 @@ export default function PlayersPage() {
           </thead>
           <tbody>
             {ranked.map(({ figure, total }, i) => {
-              const owner = teamOf(figure.id);
+              const owner = q.teamOf(figure.id);
               return (
                 <tr key={figure.id} className="border-b border-ink-line/50 last:border-0">
                   <td className="p-3 text-gov-400">{i + 1}</td>
@@ -39,7 +40,7 @@ export default function PlayersPage() {
                     >
                       <Avatar name={figure.fullName} size={32} />
                       <span>
-                        {figure.fullName} <PartyChip abbr={getPartyAbbr(figure.partyId)} />
+                        {figure.fullName} <PartyChip abbr={q.getPartyAbbr(figure.partyId)} />
                         <span className="block text-xs text-gov-400">{figure.state}</span>
                       </span>
                     </Link>

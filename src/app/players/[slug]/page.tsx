@@ -1,15 +1,5 @@
 import { notFound } from "next/navigation";
-import {
-  getAllFigures,
-  getFigureBySlug,
-  getFigureEvents,
-  getFigureSeasonByCategory,
-  getFigureSeasonTotal,
-  getFigureWeeklySeries,
-  getPartyAbbr,
-  getPartyName,
-  teamOf,
-} from "@/lib/data";
+import { getQueries } from "@/lib/data";
 import { CATEGORY_META } from "@/lib/scoring";
 import type { ScoreCategory } from "@/lib/types";
 import {
@@ -21,19 +11,21 @@ import {
   officeLabel,
 } from "@/components/ui";
 
-export function generateStaticParams() {
-  return getAllFigures().map((f) => ({ slug: f.slug }));
+export async function generateStaticParams() {
+  const q = await getQueries();
+  return q.getAllFigures().map((f) => ({ slug: f.slug }));
 }
 
-export default function FigureProfile({ params }: { params: { slug: string } }) {
-  const figure = getFigureBySlug(params.slug);
+export default async function FigureProfile({ params }: { params: { slug: string } }) {
+  const q = await getQueries();
+  const figure = q.getFigureBySlug(params.slug);
   if (!figure) notFound();
 
-  const byCat = getFigureSeasonByCategory(figure.id);
-  const series = getFigureWeeklySeries(figure.id);
-  const events = getFigureEvents(figure.id);
-  const total = getFigureSeasonTotal(figure.id);
-  const owner = teamOf(figure.id);
+  const byCat = q.getFigureSeasonByCategory(figure.id);
+  const series = q.getFigureWeeklySeries(figure.id);
+  const events = q.getFigureEvents(figure.id);
+  const total = q.getFigureSeasonTotal(figure.id);
+  const owner = q.teamOf(figure.id);
 
   const bars = (["power", "influence", "truth", "aura"] as ScoreCategory[]).map((c) => ({
     label: CATEGORY_META[c].label,
@@ -47,11 +39,11 @@ export default function FigureProfile({ params }: { params: { slug: string } }) 
         <Avatar name={figure.fullName} size={64} />
         <div className="flex-1">
           <h1 className="text-2xl font-bold">
-            {figure.fullName} <PartyChip abbr={getPartyAbbr(figure.partyId)} />
+            {figure.fullName} <PartyChip abbr={q.getPartyAbbr(figure.partyId)} />
           </h1>
           <p className="text-sm text-gov-400">
             {officeLabel(figure.office)} · {figure.state} ·{" "}
-            {getPartyName(figure.partyId)} ·{" "}
+            {q.getPartyName(figure.partyId)} ·{" "}
             {figure.chamberControl !== "na"
               ? `${figure.chamberControl} caucus`
               : "executive"}

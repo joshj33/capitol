@@ -59,7 +59,9 @@ create type league_visibility as enum ('private','public','global');
 create table leagues (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  owner_user_id uuid not null references auth.users (id),
+  -- In production this references auth.users(id); left as a plain uuid so the
+  -- demo can be seeded (scripts/seed-supabase.ts) before any auth users exist.
+  owner_user_id uuid,
   mode text not null default 'national',
   pool_filter jsonb not null default '{}',
   visibility league_visibility not null default 'private',
@@ -77,10 +79,12 @@ create table leagues (
 create table teams (
   id uuid primary key default gen_random_uuid(),
   league_id uuid not null references leagues (id) on delete cascade,
-  user_id uuid not null references auth.users (id),
+  -- Plain uuid (not an auth.users FK) so the demo seeds without auth; the
+  -- manager's display handle is denormalized here for the same reason.
+  user_id uuid,
+  owner_handle text,
   name text not null,
-  logo_emoji text default '🏛️',
-  unique (league_id, user_id)
+  logo_emoji text default '🏛️'
 );
 
 create type roster_slot as enum ('SEN','REP','EXEC','FLEX','BENCH');
@@ -263,22 +267,45 @@ create table ingestion_runs (
 );
 
 -- ----------------------------------------------------------------------------
--- Row-Level Security (enable + sketch). Tighten before production.
+-- Row-Level Security.
+--
+-- Every table below has RLS enabled. The demo grants PUBLIC READ on the data
+-- the app renders (reference tables + league/teams/rosters/matchups/events) and
+-- grants NO write policy to anon — so the anon key can read but not write.
+-- Writes happen through the service-role key (the ETL pipeline and
+-- scripts/seed-supabase.ts), which bypasses RLS.
+--
+-- For a real multi-tenant launch, replace the permissive "public read" policies
+-- on league-scoped tables (leagues/teams/roster_slots/matchups/messages) with
+-- membership-scoped ones — the commented example below is the template.
 -- ----------------------------------------------------------------------------
 alter table profiles        enable row level security;
+alter table parties         enable row level security;
+alter table figures         enable row level security;
 alter table leagues         enable row level security;
 alter table teams           enable row level security;
 alter table roster_slots    enable row level security;
+alter table matchups        enable row level security;
+alter table events          enable row level security;
+alter table figure_week_scores enable row level security;
+alter table team_week_scores   enable row level security;
 alter table messages        enable row level security;
 
--- Example: members can read their leagues; owners can update them.
-create policy "read own/public leagues" on leagues for select
-  using (visibility <> 'private'
-         or owner_user_id = auth.uid()
-         or exists (select 1 from teams t where t.league_id = leagues.id and t.user_id = auth.uid()));
+-- Public read for everything the app needs to render the demo.
+create policy "public read parties"      on parties      for select using (true);
+create policy "public read figures"      on figures      for select using (true);
+create policy "public read leagues"      on leagues      for select using (true);
+create policy "public read teams"        on teams        for select using (true);
+create policy "public read rosters"      on roster_slots for select using (true);
+create policy "public read matchups"     on matchups     for select using (true);
+create policy "public read events"       on events       for select using (true);
+create policy "public read fig scores"   on figure_week_scores for select using (true);
+create policy "public read team scores"  on team_week_scores   for select using (true);
 
-create policy "owner updates league" on leagues for update
-  using (owner_user_id = auth.uid());
-
--- Reference tables (parties, figures, events, *_scores) are world-readable;
--- expose them via select policies or keep RLS off for those tables only.
+-- Membership-scoped template for production (replaces "public read leagues"):
+-- create policy "members read leagues" on leagues for select
+--   using (visibility <> 'private'
+--          or owner_user_id = auth.uid()
+--          or exists (select 1 from teams t where t.league_id = leagues.id and t.user_id = auth.uid()));
+-- create policy "owner updates league" on leagues for update
+--   using (owner_user_id = auth.uid());

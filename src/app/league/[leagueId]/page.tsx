@@ -1,20 +1,12 @@
 import Link from "next/link";
-import {
-  getLeague,
-  getMatchups,
-  getPartyAbbr,
-  getRosterFigures,
-  getRosterLegality,
-  getStandings,
-  getTeams,
-  getFigureSeasonTotal,
-} from "@/lib/data";
+import { getQueries } from "@/lib/data";
 import { FigureLink } from "@/components/ui";
 
-export default function LeaguePage() {
-  const league = getLeague();
-  const standings = getStandings();
-  const teams = getTeams();
+export default async function LeaguePage() {
+  const q = await getQueries();
+  const league = q.getLeague();
+  const standings = q.getStandings();
+  const teams = q.getTeams();
   const weeks = Array.from({ length: league.currentWeek }, (_, i) => i + 1);
 
   return (
@@ -84,7 +76,7 @@ export default function LeaguePage() {
                   )}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {getMatchups(week).map((m) => {
+                  {q.getMatchups(week).map((m) => {
                     const homeWin = m.home.points > m.away.points;
                     const awayWin = m.away.points > m.home.points;
                     return (
@@ -116,8 +108,8 @@ export default function LeaguePage() {
         <h2 className="mb-2 text-lg font-bold">Rosters</h2>
         <div className="grid gap-4 lg:grid-cols-2">
           {teams.map((team) => {
-            const roster = getRosterFigures(team.id);
-            const { rules, legal } = getRosterLegality(team.id);
+            const roster = q.getRosterFigures(team.id);
+            const { rules, legal } = q.getRosterLegality(team.id);
             return (
               <div key={team.id} className="card">
                 <div className="mb-3 flex items-center justify-between">
@@ -138,10 +130,10 @@ export default function LeaguePage() {
                         <span className="w-12 shrink-0 text-xs font-semibold text-gov-400">
                           {slot}
                         </span>
-                        <FigureLink figure={figure} abbr={getPartyAbbr(figure.partyId)} />
+                        <FigureLink figure={figure} abbr={q.getPartyAbbr(figure.partyId)} />
                       </div>
                       <span className="tabular-nums text-sm font-semibold">
-                        {getFigureSeasonTotal(figure.id)}
+                        {q.getFigureSeasonTotal(figure.id)}
                       </span>
                     </div>
                   ))}

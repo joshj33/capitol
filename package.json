@@ -10,9 +10,11 @@
     "lint": "next lint",
     "ingest": "node scripts/ingest-influence.mjs",
     "ingest:power": "node scripts/ingest-power.mjs",
-    "enrich:bioguide": "node scripts/enrich-bioguide.mjs"
+    "enrich:bioguide": "node scripts/enrich-bioguide.mjs",
+    "db:seed": "tsx scripts/seed-supabase.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.1",
     "next": "14.2.15",
     "react": "18.3.1",
     "react-dom": "18.3.1"
@@ -27,6 +29,7 @@
     "js-yaml": "^4.2.0",
     "postcss": "8.4.47",
     "tailwindcss": "3.4.13",
+    "tsx": "^4.22.4",
     "typescript": "5.5.3"
   }
 }

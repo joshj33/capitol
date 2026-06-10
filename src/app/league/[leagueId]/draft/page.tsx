@@ -1,8 +1,8 @@
-import { getAllFigures } from "@/lib/data";
-import { parties } from "@/lib/seed";
+import { getQueries } from "@/lib/data";
 import { DraftRoom } from "@/components/DraftRoom";
 
-export default function DraftPage() {
-  // Pass plain serializable seed data into the interactive client component.
-  return <DraftRoom figures={getAllFigures()} parties={parties} />;
+export default async function DraftPage() {
+  const q = await getQueries();
+  // Pass plain serializable data into the interactive client component.
+  return <DraftRoom figures={q.getAllFigures()} parties={q.getParties()} />;
 }
