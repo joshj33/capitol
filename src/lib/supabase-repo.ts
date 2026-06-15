@@ -21,18 +21,48 @@ import type {
 
 const num = (v: unknown) => Number(v ?? 0);
 
-export async function fetchDataset(): Promise<Dataset> {
-  const db = getSupabase();
+type Db = ReturnType<typeof getSupabase>;
 
-  // The demo is single-league; take the most recently created one.
-  const { data: leagueRow, error: leagueErr } = await db
+// Picks which league to load for the viewer: a league they manage a team in,
+// else one they own, else the most recently created (the public/demo default).
+// Scoping the loaded league to the user is what makes "my league" theirs.
+async function selectLeagueRow(db: Db, viewerUserId: string | null) {
+  if (viewerUserId) {
+    const { data: myTeam } = await db
+      .from("teams")
+      .select("league_id")
+      .eq("user_id", viewerUserId)
+      .limit(1)
+      .maybeSingle();
+    if (myTeam?.league_id) {
+      const { data } = await db.from("leagues").select("*").eq("id", myTeam.league_id).single();
+      if (data) return data;
+    }
+
+    const { data: owned } = await db
+      .from("leagues")
+      .select("*")
+      .eq("owner_user_id", viewerUserId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (owned) return owned;
+  }
+
+  const { data, error } = await db
     .from("leagues")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
-  if (leagueErr) throw new Error(`Supabase: failed to load league — ${leagueErr.message}`);
+  if (error) throw new Error(`Supabase: failed to load league — ${error.message}`);
+  return data;
+}
 
+export async function fetchDataset(viewerUserId: string | null = null): Promise<Dataset> {
+  const db = getSupabase();
+
+  const leagueRow = await selectLeagueRow(db, viewerUserId);
   const leagueId = leagueRow.id as string;
 
   const [parties, figures, teams, rosterRows, matchups, events] = await Promise.all([

@@ -41,7 +41,11 @@ export default async function HomePage() {
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="League" value={league.name.replace("The ", "")} sub={`Week ${league.currentWeek} of ${league.regularWeeks}`} />
         <Stat label="Teams" value={standings.length} sub="private league" />
-        <Stat label="Your record" value={`${myRow?.wins ?? 0}–${myRow?.losses ?? 0}`} sub={myTeam?.name ?? "—"} />
+        <Stat
+          label="Your record"
+          value={myTeam ? `${myRow?.wins ?? 0}–${myRow?.losses ?? 0}` : "—"}
+          sub={myTeam?.name ?? "Not in this league"}
+        />
         <Stat label="Scoring live" value="Power + Influence" sub="Truth & Aura in V2" />
       </section>
 
@@ -94,10 +98,18 @@ export default async function HomePage() {
             <h2 className="mb-2 text-lg font-bold">Standings</h2>
             <div className="card space-y-2 text-sm">
               {standings.map((s, i) => (
-                <div key={s.team.id} className="flex items-center justify-between">
+                <div
+                  key={s.team.id}
+                  className={`flex items-center justify-between ${
+                    s.team.id === myTeam?.id ? "font-semibold text-gov-100" : ""
+                  }`}
+                >
                   <span>
                     <span className="mr-2 text-gov-400">{i + 1}</span>
                     {s.team.logoEmoji} {s.team.name}
+                    {s.team.id === myTeam?.id && (
+                      <span className="ml-2 chip bg-gov-500/20 text-gov-100">you</span>
+                    )}
                   </span>
                   <span className="tabular-nums text-gov-400">
                     {s.wins}–{s.losses}

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { signOut } from "@/app/auth/actions";
+import { getCurrentUser } from "@/lib/auth";
 
 const links = [
   { href: "/", label: "Home" },
@@ -8,7 +10,9 @@ const links = [
   { href: "/methodology", label: "Methodology" },
 ];
 
-export function SiteNav() {
+export async function SiteNav() {
+  const user = await getCurrentUser();
+
   return (
     <header className="border-b border-ink-line bg-ink-soft/60 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-4 py-3">
@@ -30,6 +34,25 @@ export function SiteNav() {
             </Link>
           ))}
         </nav>
+
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          {user ? (
+            <>
+              <span className="hidden max-w-[14rem] truncate text-gov-400 sm:inline">
+                {user.email}
+              </span>
+              <form action={signOut}>
+                <button type="submit" className="btn-ghost">
+                  Sign out
+                </button>
+              </form>
+            </>
+          ) : (
+            <Link href="/login" className="btn-primary">
+              Sign in
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

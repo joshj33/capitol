@@ -25,7 +25,7 @@ export interface MatchupView {
   away: { team: Team; points: number };
 }
 
-export function createQueries(ds: Dataset) {
+export function createQueries(ds: Dataset, viewerUserId?: string | null) {
   const { league, parties, figures, teams, rosters, matchups, events } = ds;
 
   // Aggregate events into per-figure/week/category scores once per dataset.
@@ -38,6 +38,16 @@ export function createQueries(ds: Dataset) {
   const getFigureSeasonTotal = (figureId: string): number =>
     figureSeasonTotal(figureScores, league, figureId);
 
+  // --- Viewer scoping -------------------------------------------------------
+  // `viewer` is the signed-in user's id, or null when signed out / in seed
+  // mode. `demo` is true when there's no real backing store, in which case the
+  // app stays fully open so it works with zero config.
+  const viewer = viewerUserId || null;
+  const demo = ds.meta.source === "seed";
+  const viewerTeam = viewer ? teams.find((t) => t.userId === viewer) : undefined;
+  const isLeagueOwner = Boolean(viewer && league.ownerUserId && viewer === league.ownerUserId);
+  const isLeagueMember = Boolean(viewerTeam) || isLeagueOwner;
+
   return {
     meta: ds.meta,
     getLeague: () => league,
@@ -45,10 +55,29 @@ export function createQueries(ds: Dataset) {
     getTeams: () => teams,
     getTeam,
 
-    /** The current user's team. Without auth, this is the league owner's team
-     *  (falling back to the first team), used for the "your record" widgets. */
-    getMyTeam: (): Team | undefined =>
-      teams.find((t) => t.userId && t.userId === league.ownerUserId) ?? teams[0],
+    /** The signed-in user's id, or null. */
+    getViewerUserId: (): string | null => viewer,
+    /** The team the signed-in user manages in this league, or undefined. Strict:
+     *  never falls back to another user's team. Use this for gating. */
+    getViewerTeam: (): Team | undefined => viewerTeam,
+    /** True when the viewer owns a team in — or owns — this league. */
+    isLeagueMember: (): boolean => isLeagueMember,
+    isLeagueOwner: (): boolean => isLeagueOwner,
+    /** Whether the viewer may make league moves (enter the draft, edit rosters).
+     *  Open in demo mode so the zero-config experience is unchanged. */
+    canManageLeague: (): boolean => demo || isLeagueMember,
+    /** Whether the viewer may manage a specific team. */
+    canManageTeam: (teamId: string): boolean =>
+      demo || Boolean(viewer && (getTeam(teamId)?.userId === viewer || isLeagueOwner)),
+
+    /** The team whose widgets ("your record") we show. When signed in, strictly
+     *  the viewer's team. In demo mode (no auth) we fall back to the league
+     *  owner's team so the zero-config experience still populates. */
+    getMyTeam: (): Team | undefined => {
+      if (viewer) return viewerTeam;
+      if (!demo) return undefined;
+      return teams.find((t) => t.userId && t.userId === league.ownerUserId) ?? teams[0];
+    },
 
     getAllFigures: () => figures,
     getFigureBySlug: (slug: string) => figures.find((f) => f.slug === slug),

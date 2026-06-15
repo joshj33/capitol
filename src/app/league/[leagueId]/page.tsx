@@ -9,6 +9,12 @@ export default async function LeaguePage() {
   const teams = q.getTeams();
   const weeks = Array.from({ length: league.currentWeek }, (_, i) => i + 1);
 
+  const myTeam = q.getMyTeam();
+  const canManage = q.canManageLeague();
+  // Show membership messaging only when running on a real backing store; the
+  // seed demo is intentionally open to everyone.
+  const live = q.meta.source === "supabase";
+
   return (
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -18,10 +24,23 @@ export default async function LeaguePage() {
             Private league · Week {league.currentWeek} of {league.regularWeeks} ·
             Top {league.playoffTeams} make the playoffs
           </p>
+          {live && (
+            <p className="mt-1 text-xs text-gov-400">
+              {q.isLeagueOwner()
+                ? "👑 You own this league"
+                : myTeam
+                  ? `You manage ${myTeam.logoEmoji} ${myTeam.name}`
+                  : "You're viewing this league as a guest"}
+            </p>
+          )}
         </div>
-        <Link href={`/league/${league.id}/draft`} className="btn-primary">
-          Draft room
-        </Link>
+        {canManage ? (
+          <Link href={`/league/${league.id}/draft`} className="btn-primary">
+            Draft room
+          </Link>
+        ) : (
+          <span className="chip bg-ink-line/60 text-gov-400">Join to draft</span>
+        )}
       </header>
 
       {/* Standings table */}
@@ -41,10 +60,18 @@ export default async function LeaguePage() {
             </thead>
             <tbody>
               {standings.map((s, i) => (
-                <tr key={s.team.id} className="border-b border-ink-line/50 last:border-0">
+                <tr
+                  key={s.team.id}
+                  className={`border-b border-ink-line/50 last:border-0 ${
+                    s.team.id === myTeam?.id ? "bg-gov-500/10" : ""
+                  }`}
+                >
                   <td className="p-3 text-gov-400">{i + 1}</td>
                   <td className="p-3 font-medium">
                     {s.team.logoEmoji} {s.team.name}
+                    {s.team.id === myTeam?.id && (
+                      <span className="ml-2 chip bg-gov-500/20 text-gov-100">you</span>
+                    )}
                     {i < league.playoffTeams && (
                       <span className="ml-2 chip bg-good/15 text-good">playoff</span>
                     )}
@@ -110,11 +137,13 @@ export default async function LeaguePage() {
           {teams.map((team) => {
             const roster = q.getRosterFigures(team.id);
             const { rules, legal } = q.getRosterLegality(team.id);
+            const mine = team.id === myTeam?.id;
             return (
-              <div key={team.id} className="card">
+              <div key={team.id} className={`card ${mine ? "border-gov-500" : ""}`}>
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="font-bold">
                     {team.logoEmoji} {team.name}
+                    {mine && <span className="ml-2 chip bg-gov-500/20 text-gov-100">you</span>}
                   </h3>
                   <span
                     className={`chip ${legal ? "bg-good/15 text-good" : "bg-bad/15 text-bad"}`}
